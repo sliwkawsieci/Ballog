@@ -1,0 +1,149 @@
+CLASS zkrsl_cl_appl_log DEFINITION
+  PUBLIC
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+	INTERFACES:
+  	zkrsl_if_logger.
+	CONSTANTS:
+  	mc_object TYPE balobj_d VALUE 'ZKRSL'.
+	METHODS:
+  	constructor
+    	IMPORTING
+      	i_subobject TYPE balsubobj
+      	i_nrext 	TYPE balnrext OPTIONAL
+      	i_title 	TYPE baltitle OPTIONAL
+    	RAISING
+      	zcx_appl_log.
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+	CONSTANTS:
+  	mc_type_error TYPE symsgty VALUE 'E' ##NO_TEXT.
+	DATA:
+  	mo_appl_log TYPE REF TO zcl_appl_log.
+ENDCLASS.
+
+
+CLASS zkrsl_cl_appl_log IMPLEMENTATION.
+
+  METHOD constructor.
+	mo_appl_log = zcl_appl_log=>create(
+  	iv_object	= mc_object
+  	iv_subobject = i_subobject
+  	iv_title 	= i_title
+  	iv_nrext 	= i_nrext ).
+  ENDMETHOD.
+
+  METHOD zkrsl_if_logger~add.
+	mo_appl_log->add(
+  	EXPORTING
+    	is_message   = is_message
+    	is_context   = is_context ).
+  ENDMETHOD.
+
+  METHOD zkrsl_if_logger~add_current.
+	mo_appl_log->add_current(
+    	is_context = is_context ).
+  ENDMETHOD.
+
+  METHOD zkrsl_if_logger~add_exception.
+	DATA:
+  	ls_msg  TYPE bapiret2.
+
+	IF io_exc IS BOUND.
+  	IF io_exc IS INSTANCE OF if_t100_message.
+    	DATA(lo_t100_exc) = CAST if_t100_message( io_exc ).
+    	ls_msg-id 	= lo_t100_exc->t100key-msgid.
+    	ls_msg-number = lo_t100_exc->t100key-msgno.
+    	"attribute 1
+    	ASSIGN lo_t100_exc->(lo_t100_exc->t100key-attr1) TO FIELD-SYMBOL(<attr>).
+    	IF sy-subrc EQ 0.
+      	ls_msg-message_v1 = |{ <attr> ALPHA = OUT }|.
+    	ENDIF.
+    	"attribute 2
+    	ASSIGN lo_t100_exc->(lo_t100_exc->t100key-attr2) TO <attr>.
+    	IF sy-subrc EQ 0.
+      	ls_msg-message_v2 = |{ <attr>  ALPHA = OUT }|.
+    	ENDIF.
+    	"attribute 3
+    	ASSIGN lo_t100_exc->(lo_t100_exc->t100key-attr3) TO <attr>.
+    	IF sy-subrc EQ 0.
+      	ls_msg-message_v3 = |{ <attr> ALPHA = OUT }|.
+    	ENDIF.
+    	"attribute 4
+    	ASSIGN lo_t100_exc->(lo_t100_exc->t100key-attr4) TO <attr>.
+    	IF sy-subrc EQ 0.
+      	ls_msg-message_v4 = |{ <attr> ALPHA = OUT }|.
+    	ENDIF.
+    	IF io_exc IS INSTANCE OF if_t100_dyn_msg
+    	AND NOT CAST if_t100_dyn_msg( io_exc )->msgty IS INITIAL.
+      	ls_msg-type = CAST if_t100_dyn_msg( io_exc )->msgty.
+    	ELSE.
+      	ls_msg-type = mc_type_error.
+    	ENDIF.
+    	MESSAGE ID ls_msg-id TYPE ls_msg-type
+     	NUMBER ls_msg-number
+       	WITH ls_msg-message_v1
+            	ls_msg-message_v2
+            	ls_msg-message_v3
+            	ls_msg-message_v4
+       	INTO ls_msg-message.
+    	me->zkrsl_if_logger~add(
+      	EXPORTING
+        	is_message   = ls_msg
+        	is_context   = is_context ).
+  	ELSE.
+    	me->zkrsl_if_logger~add_text(
+      	EXPORTING
+        	i_type   	= mc_type_error
+        	i_text   	= io_exc->get_text( )
+        	is_context   = is_context
+    	).
+  	ENDIF.
+	ENDIF.
+  ENDMETHOD.
+
+  METHOD zkrsl_if_logger~add_tab.
+	mo_appl_log->add_tab(
+  	EXPORTING
+    	it_messages  = it_messages
+    	is_context   = is_context ).
+  ENDMETHOD.
+
+  METHOD zkrsl_if_logger~add_text.
+	mo_appl_log->add_text(
+  	EXPORTING
+    	iv_type  	= i_type
+    	iv_text  	= i_text
+    	is_context   = is_context ).
+  ENDMETHOD.
+
+  METHOD zkrsl_if_logger~delete.
+	mo_appl_log->delete( ).
+  ENDMETHOD.
+
+  METHOD zkrsl_if_logger~display.
+	mo_appl_log->display(
+    	is_structure = is_structure ).
+  ENDMETHOD.
+
+  METHOD zkrsl_if_logger~display_ec_window.
+	mo_appl_log->display_ec_window(
+    	is_structure = is_structure ).
+  ENDMETHOD.
+
+  METHOD zkrsl_if_logger~display_window.
+	mo_appl_log->display_window(
+    	is_structure = is_structure ).
+  ENDMETHOD.
+
+  METHOD zkrsl_if_logger~refresh.
+	mo_appl_log->refresh( ).
+  ENDMETHOD.
+
+  METHOD zkrsl_if_logger~save.
+	mo_appl_log->save( ).
+  ENDMETHOD.
+
+ENDCLASS.
+

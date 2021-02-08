@@ -1,0 +1,59 @@
+INTERFACE zkrsl_if_logger
+  PUBLIC .
+  METHODS add
+	IMPORTING
+  	!is_message TYPE bapiret2
+  	!is_context TYPE bal_s_cont OPTIONAL
+	RAISING
+  	zcx_appl_log .
+  METHODS add_current
+	IMPORTING
+  	!is_context TYPE bal_s_cont OPTIONAL
+	RAISING
+  	zcx_appl_log .
+  METHODS add_tab
+	IMPORTING
+  	!it_messages TYPE tt_bapiret2
+  	!is_context  TYPE bal_s_cont OPTIONAL
+	RAISING
+  	zcx_appl_log .
+  METHODS add_text
+	IMPORTING
+  	!i_type	TYPE symsgty
+  	!i_text	TYPE clike
+  	!is_context TYPE bal_s_cont OPTIONAL
+	RAISING
+  	zcx_appl_log .
+  METHODS add_exception
+	IMPORTING
+  	!io_exc 	TYPE REF TO cx_static_check
+  	!is_context TYPE bal_s_cont OPTIONAL
+	RAISING
+  	zcx_appl_log.
+  METHODS display
+	IMPORTING
+  	!is_structure TYPE tabname OPTIONAL
+	RAISING
+  	zcx_appl_log .
+  METHODS display_window
+	IMPORTING
+  	!is_structure TYPE tabname OPTIONAL
+	RAISING
+  	zcx_appl_log .
+  METHODS display_ec_window
+	IMPORTING
+  	!is_structure TYPE tabname OPTIONAL
+	RETURNING
+  	VALUE(rs_ec)  TYPE bal_s_excm
+	RAISING
+  	zcx_appl_log .
+  METHODS save
+	RAISING
+  	zcx_appl_log .
+  METHODS refresh
+	RAISING
+  	zcx_appl_log .
+  METHODS delete
+	RAISING
+  	zcx_appl_log .
+ENDINTERFACE.

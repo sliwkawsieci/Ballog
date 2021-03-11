@@ -1,4 +1,4 @@
-CLASS zcl_appl_logger DEFINITION
+CLASS zcl_zhr_appl_logger DEFINITION
  PUBLIC
   FINAL
   CREATE PUBLIC .
@@ -31,40 +31,40 @@ CLASS zcl_appl_logger DEFINITION
     METHODS save .
     METHODS display
       IMPORTING
-        !iv_displflag       TYPE flag OPTIONAL
-        !is_display_profile TYPE bal_s_prof OPTIONAL
-          PREFERRED PARAMETER iv_displflag .
+        !iv_show_tree     TYPE sap_bool OPTIONAL
+        !iv_standard_disp TYPE sap_bool OPTIONAL .
     METHODS add_message_ex
       IMPORTING
         ir_ex TYPE REF TO cx_static_check
       RAISING
-        zcx_static_error .
+        zcx_zhr_altinn .
     METHODS refresh_current_msg
       EXCEPTIONS
         log_not_found .
   PROTECTED SECTION.
-*"* protected components of class zcl_appl_logger
+*"* protected components of class zcl_appl_log
 *"* do not include other source files here!!!
   PRIVATE SECTION.
-*"* private components of class zcl_appl_logger
+*"* private components of class zcl_appl_log
 *"* do not include other source files here!!!
 
     DATA mv_log_handle TYPE balloghndl .
+    DATA mv_title TYPE baltitle .
 ENDCLASS.
 
 
-CLASS zcl_appl_logger IMPLEMENTATION.
+CLASS zcl_zhr_appl_logger IMPLEMENTATION.
   METHOD add_sy_msg.
 
     DATA: ls_msg   TYPE bal_s_msg.
 
-      ls_msg-msgty = sy-msgty.
-      ls_msg-msgid = sy-msgid.
-      ls_msg-msgno = sy-msgno.
-      ls_msg-msgv1 = sy-msgv1.
-      ls_msg-msgv2 = sy-msgv2.
-      ls_msg-msgv3 = sy-msgv3.
-      ls_msg-msgv4 = sy-msgv4.
+    ls_msg-msgty = sy-msgty.
+    ls_msg-msgid = sy-msgid.
+    ls_msg-msgno = sy-msgno.
+    ls_msg-msgv1 = sy-msgv1.
+    ls_msg-msgv2 = sy-msgv2.
+    ls_msg-msgv3 = sy-msgv3.
+    ls_msg-msgv4 = sy-msgv4.
 
     me->msg_add( iv_msgty = ls_msg-msgty
                  iv_msgid = ls_msg-msgid
@@ -136,8 +136,10 @@ CLASS zcl_appl_logger IMPLEMENTATION.
   METHOD display.
 * ------------------------------------------------------------------
 
-    DATA: lt_log_handle TYPE bal_t_logh.
-    DATA: ls_statistics TYPE bal_s_scnt.
+    DATA: lt_log_handle     TYPE bal_t_logh,
+          ls_statistics     TYPE bal_s_scnt,
+          ls_profile_single TYPE bal_s_prof,
+          ls_profile        TYPE bal_s_prof.
 
 * ------------------------------------------------------------------
 
@@ -150,54 +152,77 @@ CLASS zcl_appl_logger IMPLEMENTATION.
 
     CHECK ls_statistics-msg_cnt_al > 0.
 
-    CASE iv_displflag.
-      WHEN ''.
-        IF  ls_statistics-msg_cnt_al = 1.
-          "Bei nur einer Meldung kein Applog-Popup
-          MESSAGE ID sy-msgid
-            TYPE
-              'W' " sy-msgty
-            NUMBER
-              sy-msgno
-            WITH
-              sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
-        ELSE.
-          APPEND mv_log_handle TO lt_log_handle.
+    APPEND mv_log_handle TO lt_log_handle.
+    IF iv_standard_disp EQ abap_true.
+      CALL FUNCTION 'BAL_DSP_PROFILE_STANDARD_GET'
+        IMPORTING
+          e_s_display_profile = ls_profile.
 
-          CALL FUNCTION 'BAL_DSP_LOG_DISPLAY'
-            EXPORTING
-              i_t_log_handle = lt_log_handle
-              i_amodal       = 'X'.
-        ENDIF.
-      WHEN '1'.
-        "Immer im neuen Modus
-        APPEND mv_log_handle TO lt_log_handle.
+      ls_profile-tree_adjst = abap_true.
+      ls_profile-show_all = abap_true.
+    ELSE.
+      CALL FUNCTION 'BAL_DSP_PROFILE_POPUP_GET'
+        IMPORTING
+          e_s_display_profile = ls_profile.
 
-        CALL FUNCTION 'BAL_DSP_LOG_DISPLAY'
-          EXPORTING
-            i_t_log_handle = lt_log_handle
-            i_amodal       = 'X'.
-      WHEN '2'.
-        IF  ls_statistics-msg_cnt_al = 1.
-          "Bei nur einer Meldung kein Applog-Popup
-          MESSAGE ID sy-msgid
-            TYPE
-              sy-msgty
-            NUMBER
-              sy-msgno
-            WITH
-              sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
-        ELSE.
-          "Popup
-          APPEND mv_log_handle TO lt_log_handle.
+      IF iv_show_tree EQ abap_true.
+        CALL FUNCTION 'BAL_DSP_PROFILE_SINGLE_LOG_GET'
+          IMPORTING
+            e_s_display_profile = ls_profile_single.
 
-          CALL FUNCTION 'BAL_DSP_LOG_DISPLAY'
-            EXPORTING
-              i_s_display_profile = is_display_profile
-              i_t_log_handle      = lt_log_handle
-              i_amodal            = ' '.
-        ENDIF.
-    ENDCASE.
+        ls_profile_single-start_col = ls_profile-start_col.
+        ls_profile_single-start_row = ls_profile-start_row.
+        ls_profile_single-end_col = ls_profile-end_col + 20.
+        ls_profile_single-end_row = ls_profile-end_row.
+*        ls_profile_single-pop_adjst = ls_profile-pop_adjst.
+        ls_profile = ls_profile_single.
+      ENDIF.
+
+      CALL FUNCTION 'BAL_DSP_PROFILE_POPUP_GET'
+        IMPORTING
+          e_s_display_profile = ls_profile.
+
+      ls_profile-tree_adjst = abap_true.
+      ls_profile-show_all = abap_true.
+
+      ls_profile-title =   mv_title.
+      ls_profile-use_grid = abap_true.
+
+      CALL FUNCTION 'BAL_DSP_LOG_DISPLAY'
+        EXPORTING
+          i_s_display_profile = ls_profile
+          i_t_log_handle      = lt_log_handle.
+*              i_amodal       = 'X'.
+*        ENDIF.
+*        WHEN '1'.
+*          "Immer im neuen Modus
+*
+*
+*          CALL FUNCTION 'BAL_DSP_LOG_DISPLAY'
+*            EXPORTING
+*              i_t_log_handle = lt_log_handle
+*              i_amodal       = 'X'.
+*        WHEN '2'.
+*          IF  ls_statistics-msg_cnt_al = 1.
+*            "Bei nur einer Meldung kein Applog-Popup
+*            MESSAGE ID sy-msgid
+*              TYPE
+*                sy-msgty
+*              NUMBER
+*                sy-msgno
+*              WITH
+*                sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+*          ELSE.
+*            "Popup
+*            APPEND mv_log_handle TO lt_log_handle.
+*
+*            CALL FUNCTION 'BAL_DSP_LOG_DISPLAY'
+*              EXPORTING
+*                i_s_display_profile = is_display_profile
+*                i_t_log_handle      = lt_log_handle
+*                i_amodal            = ' '.
+    ENDIF.
+*      ENDCASE.
   ENDMETHOD.
 
   METHOD has_error.

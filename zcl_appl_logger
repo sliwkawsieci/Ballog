@@ -8,12 +8,18 @@ CLASS zcl_zhr_appl_logger DEFINITION
   PUBLIC SECTION.
 
 
-    METHODS constructor
+       METHODS constructor
       IMPORTING
         !iv_object    TYPE balobj_d
         !iv_subobject TYPE balsubobj
         !iv_extnumber TYPE balnrext .
-    METHODS add_sy_msg .
+    METHODS: add_sy_msg ,
+      download_inital_messages
+        IMPORTING
+          !iv_object    TYPE balobj_d
+          !iv_subobject TYPE balsubobj
+          !iv_extnumber TYPE balnrext
+          iv_data       TYPE sy-datum OPTIONAL .
     METHODS add_bapiret IMPORTING
                           !is_bapiret2 TYPE bapiret2.
     METHODS has_error
@@ -78,30 +84,17 @@ CLASS zcl_zhr_appl_logger IMPLEMENTATION.
 
   METHOD add_message_ex.
     DATA: lv_logged    TYPE boolean,
+          lx_ex        TYPE REF TO zcx_iaf,
           lv_displated TYPE boolean.
 
     FIELD-SYMBOLS: <ls_bapiret2> TYPE bapiret2.
 
-*    LOOP AT ir_ex->mt_msg[] ASSIGNING <ls_bapiret2>.
-*      me->add_bapiret(  is_bapiret2 = <ls_bapiret2> ).
-*    ENDLOOP.
+    lx_ex ?= ir_ex.
 
-    CALL FUNCTION 'BAL_LOG_EXC_ADD'
-      EXPORTING
-        i_log_handle        = mv_log_handle   " Application Log: Log Handle
-        i_msgty             = 'E'      " Messages, Message Type
-*       i_probclass         = '4'    " Application log: Message problem class
-        i_exception         = ir_ex    " Interface for Accessing Texts from Message Objects
-      IMPORTING
-*       e_s_msg_handle      = mv_log_handle     " Application Log: Message Handle
-        e_msg_was_logged    = lv_logged   " Boolean Variable (X=True, -=False, Space=Unknown)
-        e_msg_was_displayed = lv_displated   " Boolean Variable (X=True, -=False, Space=Unknown)
-*      EXCEPTIONS
-*       log_not_found       = 1
-*       msg_inconsistent    = 2
-*       log_is_full         = 3
-*       others              = 4
-      .
+    LOOP AT lx_ex->get_message_tab( ) ASSIGNING <ls_bapiret2>.
+      me->add_bapiret(  is_bapiret2 = <ls_bapiret2> ).
+    ENDLOOP.
+
 
 *    MESSAGE ir_ex->get_text( ) TYPE 'E' INTO data(lv_dummy). TODO
 *
@@ -188,41 +181,13 @@ CLASS zcl_zhr_appl_logger IMPLEMENTATION.
       ls_profile-title =   mv_title.
       ls_profile-use_grid = abap_true.
 
-      CALL FUNCTION 'BAL_DSP_LOG_DISPLAY'
-        EXPORTING
-          i_s_display_profile = ls_profile
-          i_t_log_handle      = lt_log_handle.
-*              i_amodal       = 'X'.
-*        ENDIF.
-*        WHEN '1'.
-*          "Immer im neuen Modus
-*
-*
-*          CALL FUNCTION 'BAL_DSP_LOG_DISPLAY'
-*            EXPORTING
-*              i_t_log_handle = lt_log_handle
-*              i_amodal       = 'X'.
-*        WHEN '2'.
-*          IF  ls_statistics-msg_cnt_al = 1.
-*            "Bei nur einer Meldung kein Applog-Popup
-*            MESSAGE ID sy-msgid
-*              TYPE
-*                sy-msgty
-*              NUMBER
-*                sy-msgno
-*              WITH
-*                sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
-*          ELSE.
-*            "Popup
-*            APPEND mv_log_handle TO lt_log_handle.
-*
-*            CALL FUNCTION 'BAL_DSP_LOG_DISPLAY'
-*              EXPORTING
-*                i_s_display_profile = is_display_profile
-*                i_t_log_handle      = lt_log_handle
-*                i_amodal            = ' '.
     ENDIF.
-*      ENDCASE.
+    CALL FUNCTION 'BAL_DSP_LOG_DISPLAY'
+      EXPORTING
+        i_s_display_profile = ls_profile
+        i_t_log_handle      = lt_log_handle.
+*              i_amodal       = 'X'.
+
   ENDMETHOD.
 
   METHOD has_error.
@@ -351,4 +316,7 @@ CLASS zcl_zhr_appl_logger IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD download_inital_messages.
+
+  ENDMETHOD.
 ENDCLASS.

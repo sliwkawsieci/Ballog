@@ -1,0 +1,108 @@
+CLASS zcx_appexc DEFINITION
+  PUBLIC
+  INHERITING FROM cx_static_check
+  FINAL
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+    INTERFACES if_t100_dyn_msg.
+
+    INTERFACES if_t100_message .
+
+    CONSTANTS:
+      BEGIN OF c4c_create_error,
+        msgid TYPE symsgid VALUE 'ZIAF',
+        msgno TYPE symsgno VALUE '001',
+        attr1 TYPE scx_attrname VALUE 'V1',
+        attr2 TYPE scx_attrname VALUE 'V2',
+        attr3 TYPE scx_attrname VALUE 'V3',
+        attr4 TYPE scx_attrname VALUE 'V4',
+      END OF c4c_create_error,
+      BEGIN OF bad_feature,
+        msgid TYPE symsgid VALUE 'ZIAF',
+        msgno TYPE symsgno VALUE '010',
+        attr1 TYPE scx_attrname VALUE 'V1',
+        attr2 TYPE scx_attrname VALUE 'V2',
+        attr3 TYPE scx_attrname VALUE 'V3',
+        attr4 TYPE scx_attrname VALUE 'V4',
+      END OF bad_feature,
+      BEGIN OF missing_config,
+        msgid TYPE symsgid VALUE 'ZIAF',
+        msgno TYPE symsgno VALUE '008',
+        attr1 TYPE scx_attrname VALUE 'V1',
+        attr2 TYPE scx_attrname VALUE 'V2',
+        attr3 TYPE scx_attrname VALUE 'V3',
+        attr4 TYPE scx_attrname VALUE 'V4',
+      END OF missing_config.
+
+
+    DATA: v1 TYPE string,
+          v2 TYPE string,
+          v3 TYPE string,
+          v4 TYPE string.
+
+
+    METHODS: constructor
+      IMPORTING
+        textid   LIKE if_t100_message=>t100key OPTIONAL
+        previous LIKE previous OPTIONAL ,
+      append_sy_message ,
+      get_message_tab RETURNING VALUE(et_msg) TYPE bapiret2_t.
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+    DATA: mt_msg TYPE bapiret2_t.
+
+ENDCLASS.
+
+
+
+CLASS zcx_appexc IMPLEMENTATION.
+
+
+  METHOD constructor ##ADT_SUPPRESS_GENERATION.
+    CALL METHOD super->constructor
+      EXPORTING
+        previous = previous.
+    CLEAR me->textid.
+    IF textid IS INITIAL.
+      if_t100_message~t100key = if_t100_message=>default_textid.
+    ELSE.
+      if_t100_message~t100key = textid.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD get_message_tab.
+    et_msg = mt_msg.
+  ENDMETHOD.
+
+  METHOD append_sy_message.
+    FIELD-SYMBOLS <ls_msg> TYPE bapiret2.
+    CHECK sy-msgty IS NOT INITIAL.
+    APPEND INITIAL LINE TO mt_msg ASSIGNING <ls_msg>.
+
+
+
+    CALL FUNCTION 'BALW_BAPIRETURN_GET2'
+      EXPORTING
+        type   = sy-msgty
+        cl     = sy-msgid
+        number = sy-msgno
+        par1   = sy-msgv1
+        par2   = sy-msgv2
+        par3   = sy-msgv3
+        par4   = sy-msgv4
+      IMPORTING
+        return = <ls_msg>.
+
+    if_t100_message~t100key-msgid = <ls_msg>-id.
+    if_t100_message~t100key-msgno = <ls_msg>-log_msg_no.
+    if_t100_message~t100key-attr1 = <ls_msg>-message_v1.
+    if_t100_message~t100key-attr2 = <ls_msg>-message_v2.
+    if_t100_message~t100key-attr3 = <ls_msg>-message_v3.
+    if_t100_message~t100key-attr4 = <ls_msg>-message_v4.
+
+  ENDMETHOD.
+
+
+  .
+ENDCLASS.

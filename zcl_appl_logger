@@ -45,8 +45,7 @@ CLASS zcl_zhr_appl_logger DEFINITION
       RAISING
         zcx_zhr_altinn .
     METHODS refresh_current_msg
-      EXCEPTIONS
-        log_not_found .
+      RAISING zcx_log_exc.
   PROTECTED SECTION.
 *"* protected components of class zcl_appl_log
 *"* do not include other source files here!!!
@@ -258,12 +257,14 @@ CLASS zcl_zhr_appl_logger IMPLEMENTATION.
           OTHERS        = 2.
 
       IF sy-subrc = 1.
-        RAISE log_not_found.
+        DATA(lx_exc) = NEW zcx_log_exc( ).
+        lx_exc->append_sy_message( ).
+        RAISE EXCEPTION TYPE zcx_log_exc.
+
       ENDIF.
 
     ENDIF.
   ENDMETHOD.
-
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
 * | Instance Public Method zcl_appl_log->SAVE

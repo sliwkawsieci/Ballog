@@ -55,6 +55,9 @@ CLASS zcl_zhr_appl_logger DEFINITION
 
     DATA mv_log_handle TYPE balloghndl .
     DATA mv_title TYPE baltitle .
+    
+    METHODS add_message IMPORTING is_t100msg TYPE scx_t100key
+                                  iv_type    TYPE sy-msgty OPTIONAL .
 ENDCLASS.
 
 
@@ -78,6 +81,22 @@ CLASS zcl_zhr_appl_logger IMPLEMENTATION.
                  iv_msgv2 = ls_msg-msgv2
                  iv_msgv3 = ls_msg-msgv3
                  iv_msgv4 = ls_msg-msgv4 ).
+
+  ENDMETHOD.
+
+  METHOD add_message.
+    DATA(lv_type) = COND syst_msgty( WHEN iv_type IS INITIAL THEN '' ELSE iv_type ).
+
+    msg_add(
+      EXPORTING
+        iv_msgty = lv_type
+        iv_msgid = is_t100msg-msgid
+        iv_msgno = is_t100msg-msgno
+        iv_msgv1 = CONV #( is_t100msg-attr1 )
+        iv_msgv2 = CONV #( is_t100msg-attr2 )
+        iv_msgv3 = CONV #( is_t100msg-attr3 )
+        iv_msgv4 = CONV #( is_t100msg-attr4 )
+    ).
 
   ENDMETHOD.
 

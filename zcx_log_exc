@@ -5,20 +5,36 @@ CLASS zcx_log_exc DEFINITION
   CREATE PUBLIC .
 
   PUBLIC SECTION.
+    INTERFACES if_t100_dyn_msg.
+
+    INTERFACES if_t100_message .
     DATA: v1 TYPE string,
           v2 TYPE string,
           v3 TYPE string,
           v4 TYPE string.
-    INTERFACES if_t100_message .
+          
+    CONSTANTS:
+      BEGIN OF missing_config,
+        msgid TYPE symsgid VALUE 'ZKRSL',
+        msgno TYPE symsgno VALUE '001',
+        attr1 TYPE scx_attrname VALUE 'V1',
+        attr2 TYPE scx_attrname VALUE 'V2',
+        attr3 TYPE scx_attrname VALUE 'V3',
+        attr4 TYPE scx_attrname VALUE 'V4',
+      END OF missing_config.
 
-    METHODS constructor
+    METHODS: constructor
       IMPORTING
         textid   LIKE if_t100_message=>t100key OPTIONAL
-        previous LIKE previous OPTIONAL .
-    METHODS append_sy_message.
+        previous LIKE previous OPTIONAL ,
+      append_sy_message ,
+      get_message_tab RETURNING VALUE(et_msg) TYPE bapiret2_t.
+    METHODS add_bapiret IMPORTING
+                          !is_bapiret2 TYPE bapiret2.
   PROTECTED SECTION.
   PRIVATE SECTION.
     DATA: mt_msg TYPE bapiret2_t.
+
 
 ENDCLASS.
 
@@ -26,8 +42,7 @@ ENDCLASS.
 
 CLASS zcx_log_exc IMPLEMENTATION.
 
-
-  METHOD constructor ##ADT_SUPPRESS_GENERATION.
+ METHOD constructor ##ADT_SUPPRESS_GENERATION.
     CALL METHOD super->constructor
       EXPORTING
         previous = previous.
@@ -39,12 +54,30 @@ CLASS zcx_log_exc IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
+  METHOD get_message_tab.
+    et_msg = mt_msg.
+  ENDMETHOD.
+
+   METHOD add_bapiret.
+
+    DATA: ls_msg   TYPE bal_s_msg.
+
+    if_t100_message~t100key-msgid = is_bapiret2-id.
+    if_t100_message~t100key-msgno = is_bapiret2-log_msg_no.
+    if_t100_message~t100key-attr1 = is_bapiret2-message_v1.
+    if_t100_message~t100key-attr2 = is_bapiret2-message_v2.
+    if_t100_message~t100key-attr3 = is_bapiret2-message_v3.
+    if_t100_message~t100key-attr4 = is_bapiret2-message_v4.
+
+
+  ENDMETHOD.
+
   METHOD append_sy_message.
     FIELD-SYMBOLS <ls_msg> TYPE bapiret2.
     CHECK sy-msgty IS NOT INITIAL.
     APPEND INITIAL LINE TO mt_msg ASSIGNING <ls_msg>.
 
-
+"PL
 
     CALL FUNCTION 'BALW_BAPIRETURN_GET2'
       EXPORTING
@@ -66,5 +99,6 @@ CLASS zcx_log_exc IMPLEMENTATION.
     if_t100_message~t100key-attr4 = <ls_msg>-message_v4.
 
   ENDMETHOD.
+" WWW.ERPTECH.PL
 
 ENDCLASS.

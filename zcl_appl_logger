@@ -112,11 +112,10 @@ CLASS zcl_zhr_appl_logger IMPLEMENTATION.
     LOOP AT lx_ex->get_message_tab( ) ASSIGNING <ls_bapiret2>.
       me->add_bapiret(  is_bapiret2 = <ls_bapiret2> ).
     ENDLOOP.
-
-
-*    MESSAGE ir_ex->get_text( ) TYPE 'E' INTO data(lv_dummy). TODO
-*
-*    me->add_message_sy.
+    IF ir_ex->if_t100_message~t100key IS NOT INITIAL .
+      add_message( iv_type = lv_type is_t100msg = ir_ex->if_t100_message~t100key ).
+    ENDIF.
+    
   ENDMETHOD.
 
   METHOD constructor.

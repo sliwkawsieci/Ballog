@@ -1,0 +1,521 @@
+CLASS zcl_fram_logger DEFINITION
+  PUBLIC
+  CREATE PUBLIC .
+
+*"* public components of class zcl_appl_log
+*"* do not include other source files here!!!
+  PUBLIC SECTION.
+
+    INTERFACES zif_logger .
+
+    ALIASES add_bapiret
+      FOR zif_logger~add_bapiret .
+    ALIASES add_message
+      FOR zif_logger~add_message .
+    ALIASES add_message_ex
+      FOR zif_logger~add_message_ex .
+    ALIASES add_static_exception
+      FOR zif_logger~add_static_exception .
+    ALIASES add_sy_msg
+      FOR zif_logger~add_sy_msg .
+    ALIASES add_text
+      FOR zif_logger~add_text .
+    ALIASES delete_logs
+      FOR zif_logger~delete_logs .
+    ALIASES display
+      FOR zif_logger~display .
+    ALIASES get_loggs4extnum
+      FOR zif_logger~get_loggs4extnum .
+    ALIASES has_error
+      FOR zif_logger~has_error .
+    ALIASES refresh_current_msg
+      FOR zif_logger~refresh_current_msg .
+    ALIASES save
+      FOR zif_logger~save .
+
+    CONSTANTS:
+      BEGIN OF con_log_status,
+        success  TYPE char1 VALUE 'S',
+        error    TYPE char1 VALUE 'E',
+        warrning TYPE char1 VALUE 'W',
+      END OF con_log_status .
+
+    METHODS constructor
+      IMPORTING
+        !iv_object       TYPE balobj_d
+        !iv_subobject    TYPE balsubobj
+        !iv_extnumber    TYPE balnrext
+        !iv_cumulate_msg TYPE abap_bool DEFAULT abap_true .
+  PROTECTED SECTION.
+
+    DATA mv_log_handle TYPE balloghndl .
+    DATA mv_title TYPE baltitle .
+    DATA mv_cumulate_msg TYPE abap_bool .
+
+    METHODS msg_add
+      IMPORTING
+        !iv_msgty    TYPE sy-msgty
+        !iv_msgid    TYPE sy-msgid
+        !iv_msgno    TYPE sy-msgno
+        !iv_msgv1    TYPE sy-msgv1
+        !iv_msgv2    TYPE sy-msgv2
+        !iv_msgv3    TYPE sy-msgv3
+        !iv_msgv4    TYPE sy-msgv4
+        !iv_detlevel TYPE ballevel OPTIONAL
+        !is_context  TYPE bal_s_cont OPTIONAL .
+  PRIVATE SECTION.
+
+    DATA mt_msg TYPE bapiret2_t .
+    DATA ms_log TYPE bal_s_log .
+
+    METHODS get_message_tab
+      RETURNING
+        VALUE(et_msg) TYPE bapiret2_t .
+    METHODS get_exception_attr_value
+      IMPORTING
+        !io_exc         TYPE REF TO zcx_fram_log_exc
+        !iv_attrib      TYPE string
+      RETURNING
+        VALUE(rv_value) TYPE string .
+ENDCLASS.
+
+
+
+CLASS ZCL_FRAM_LOGGER IMPLEMENTATION.
+
+
+  METHOD add_bapiret.
+
+    DATA: ls_msg   TYPE bal_s_msg.
+
+    IF is_bapiret2-id IS INITIAL
+    AND is_bapiret2-number IS INITIAL
+    AND is_bapiret2-message_v1 IS INITIAL
+    AND is_bapiret2-message_v2 IS INITIAL
+    AND is_bapiret2-message_v3 IS INITIAL
+    AND is_bapiret2-message_v4 IS INITIAL.
+      EXIT.
+    ENDIF.
+
+
+    ls_msg-msgty = is_bapiret2-type.
+    ls_msg-msgid = COND #( WHEN is_bapiret2-id IS INITIAL THEN '00' ELSE is_bapiret2-id ) .
+    ls_msg-msgno = COND #( WHEN is_bapiret2-id IS INITIAL THEN  001 ELSE is_bapiret2-number ).
+    ls_msg-msgv1 = is_bapiret2-message_v1.
+    ls_msg-msgv2 = is_bapiret2-message_v2.
+    ls_msg-msgv3 = is_bapiret2-message_v3.
+    ls_msg-msgv4 = is_bapiret2-message_v4.
+
+    me->msg_add( iv_msgty = ls_msg-msgty
+                 iv_msgid = ls_msg-msgid
+                 iv_msgno = ls_msg-msgno
+                 iv_msgv1 = ls_msg-msgv1
+                 iv_msgv2 = ls_msg-msgv2
+                 iv_msgv3 = ls_msg-msgv3
+                 iv_msgv4 = ls_msg-msgv4
+                 is_context = is_context ).
+
+  ENDMETHOD.
+
+
+  METHOD add_message_ex.
+    DATA: lx_ex   TYPE REF TO zcx_fram_log_exc .
+
+    FIELD-SYMBOLS: <ls_bapiret2> TYPE bapiret2.
+    IF ir_ex IS NOT BOUND OR ir_ex IS INITIAL .
+      RAISE EXCEPTION TYPE zcx_fram_obj_no_bound.
+    ENDIF.
+
+    DATA(lv_type) = COND syst_msgty( WHEN iv_type IS INITIAL THEN 'E' ELSE iv_type ).
+
+    lx_ex ?= ir_ex.
+    LOOP AT lx_ex->get_message_tab( ) ASSIGNING <ls_bapiret2>.
+      me->add_bapiret(  is_bapiret2 = <ls_bapiret2> is_context = is_context ).
+    ENDLOOP.
+
+    IF sy-subrc <> 0.
+      IF NOT ir_ex->if_t100_message~t100key-msgid IS INITIAL AND
+         NOT ir_ex->if_t100_message~t100key-msgno IS INITIAL
+      .
+        DATA(lv_attr1) = me->get_exception_attr_value( io_exc = lx_ex iv_attrib = ir_ex->if_t100_message~t100key-attr1 ).
+        DATA(lv_attr2) = me->get_exception_attr_value( io_exc = lx_ex iv_attrib = ir_ex->if_t100_message~t100key-attr2 ).
+        DATA(lv_attr3) = me->get_exception_attr_value( io_exc = lx_ex iv_attrib = ir_ex->if_t100_message~t100key-attr3 ).
+        DATA(lv_attr4) = me->get_exception_attr_value( io_exc = lx_ex iv_attrib = ir_ex->if_t100_message~t100key-attr4 ).
+
+        MESSAGE ID ir_ex->if_t100_message~t100key-msgid TYPE lv_type NUMBER ir_ex->if_t100_message~t100key-msgno
+                  WITH lv_attr1 lv_attr2 lv_attr3 lv_attr4 INTO DATA(lv_dummy).
+
+        me->add_sy_msg( is_context = is_context ).
+      ELSE.
+        MESSAGE ID '00' TYPE lv_type NUMBER 001 WITH lx_ex->get_text( ) INTO lv_dummy.
+        me->add_sy_msg( is_context = is_context ).
+      ENDIF.
+
+      CLEAR ir_ex->if_t100_message~t100key. "Is needed?
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD add_sy_msg.
+    ASSERT sy-msgid IS NOT INITIAL.
+
+    me->msg_add(
+      iv_msgty    = sy-msgty
+      iv_msgid    = sy-msgid
+      iv_msgno    = sy-msgno
+      iv_msgv1    = sy-msgv1
+      iv_msgv2    = sy-msgv2
+      iv_msgv3    = sy-msgv3
+      iv_msgv4    = sy-msgv4
+      iv_detlevel = iv_detlevel
+      is_context  = is_context    ).
+  ENDMETHOD.
+
+
+  METHOD constructor.
+
+
+*--------------------------------------------------------------------*
+    mv_cumulate_msg = iv_cumulate_msg.
+
+    ms_log-extnumber  = iv_extnumber.
+    ms_log-object     = iv_object.
+    ms_log-subobject  = iv_subobject.
+    ms_log-aldate     = sy-datum.
+    ms_log-altime     = sy-uzeit.
+    ms_log-aluser     = sy-uname.
+    ms_log-altcode    = sy-tcode.
+    ms_log-alprog     = sy-repid.
+    ms_log-almode     = ''.
+
+    CALL FUNCTION 'BAL_LOG_CREATE'
+      EXPORTING
+        i_s_log      = ms_log
+      IMPORTING
+        e_log_handle = mv_log_handle.
+
+  ENDMETHOD.
+
+
+  METHOD delete_logs.
+    CALL FUNCTION 'BAL_LOG_MSG_DELETE_ALL'
+      EXPORTING
+        i_log_handle  = mv_log_handle   " Log handle
+      EXCEPTIONS
+        log_not_found = 1
+        OTHERS        = 2.
+    IF sy-subrc <> 0.
+*   MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+*              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD display.
+    CONSTANTS con_end_col_20 TYPE i VALUE 20.
+* ------------------------------------------------------------------
+
+    DATA: lt_log_handle     TYPE bal_t_logh,
+          ls_statistics     TYPE bal_s_scnt,
+          ls_profile_single TYPE bal_s_prof,
+          ls_profile        TYPE bal_s_prof.
+
+* ------------------------------------------------------------------
+
+
+    CALL FUNCTION 'BAL_LOG_HDR_READ'
+      EXPORTING
+        i_log_handle = mv_log_handle
+      IMPORTING
+        e_statistics = ls_statistics.
+
+    IF NOT ls_statistics-msg_cnt_al > 0.
+      RETURN.
+    ENDIF.
+
+    APPEND mv_log_handle TO lt_log_handle.
+    IF iv_standard_disp EQ abap_true.
+      CALL FUNCTION 'BAL_DSP_PROFILE_STANDARD_GET'
+        IMPORTING
+          e_s_display_profile = ls_profile.
+
+      ls_profile-tree_adjst = abap_true.
+      ls_profile-show_all = abap_true.
+    ELSE.
+      CALL FUNCTION 'BAL_DSP_PROFILE_POPUP_GET'
+        IMPORTING
+          e_s_display_profile = ls_profile.
+
+      IF iv_show_tree EQ abap_true.
+        CALL FUNCTION 'BAL_DSP_PROFILE_SINGLE_LOG_GET'
+          IMPORTING
+            e_s_display_profile = ls_profile_single.
+
+        ls_profile_single-start_col = ls_profile-start_col.
+        ls_profile_single-start_row = ls_profile-start_row.
+        ls_profile_single-end_col = ls_profile-end_col + con_end_col_20.
+        ls_profile_single-end_row = ls_profile-end_row.
+*        ls_profile_single-pop_adjst = ls_profile-pop_adjst.
+        ls_profile = ls_profile_single.
+      ENDIF.
+
+      CALL FUNCTION 'BAL_DSP_PROFILE_POPUP_GET'
+        IMPORTING
+          e_s_display_profile = ls_profile.
+
+      ls_profile-tree_adjst = abap_true.
+      ls_profile-show_all = abap_true.
+
+      ls_profile-title =   mv_title.
+      ls_profile-use_grid = abap_true.
+
+    ENDIF.
+    CALL FUNCTION 'BAL_DSP_LOG_DISPLAY'
+      EXPORTING
+        i_s_display_profile = ls_profile
+        i_t_log_handle      = lt_log_handle.
+*              i_amodal       = 'X'.
+
+  ENDMETHOD.
+
+
+  METHOD get_exception_attr_value.
+    CASE iv_attrib.
+      WHEN 'V1'.
+        rv_value = io_exc->v1.
+      WHEN 'V2'.
+        rv_value = io_exc->v2.
+      WHEN 'V3'.
+        rv_value = io_exc->v3.
+      WHEN 'V4'.
+        rv_value = io_exc->v4.
+      WHEN OTHERS.
+    ENDCASE.
+  ENDMETHOD.
+
+
+  METHOD get_loggs4extnum.
+    DATA: lv_number_of_logs TYPE i,
+          lt_header_data    TYPE TABLE OF balhdr,
+          lt_messages       TYPE TABLE OF balm,
+          lt_exceptions     TYPE TABLE OF bal_s_exception.
+
+    CHECK ms_log-object IS NOT INITIAL AND iv_external_number IS NOT INITIAL.
+
+    CALL FUNCTION 'APPL_LOG_READ_DB'
+      EXPORTING
+        object          = ms_log-object    " Object name
+*       subobject       = '*'    " Subobject name
+        external_number = iv_external_number    " external number
+      IMPORTING
+        number_of_logs  = lv_number_of_logs   " Number of logs read
+      TABLES
+        header_data     = lt_header_data   " Log header data
+        messages        = lt_messages   " Log messages
+        t_exceptions    = lt_exceptions.   " Application Log: Exceptions in Log
+
+    r_result = lt_messages.
+  ENDMETHOD.
+
+
+  METHOD get_message_tab.
+    et_msg = mt_msg.
+  ENDMETHOD.
+
+
+  METHOD has_error.
+
+    DATA(lt_msg) = VALUE bal_t_msgr( ).
+
+    CALL FUNCTION 'BAL_LOG_READ'
+      EXPORTING
+        i_log_handle  = mv_log_handle
+      IMPORTING
+        et_msg        = lt_msg
+      EXCEPTIONS
+        log_not_found = 1
+        OTHERS        = 2.
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    IF line_exists( lt_msg[ msgty = 'E' ] ) OR
+       line_exists( lt_msg[ msgty = 'A' ] ) OR
+       line_exists( lt_msg[ msgty = 'X' ] ).
+      rv_value = abap_true.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD msg_add.
+* ----------------------------------------------------------------------
+
+    DATA: ls_msg      TYPE bal_s_msg,
+          lv_detlevel TYPE ballevel.
+
+* ----------------------------------------------------------------------
+
+    lv_detlevel = COND ballevel( WHEN iv_detlevel IS INITIAL THEN '1' ELSE iv_detlevel ).
+
+    ls_msg-msgty = iv_msgty.
+    ls_msg-msgid = iv_msgid.
+    ls_msg-msgno = iv_msgno.
+    ls_msg-msgv1 = iv_msgv1.
+    ls_msg-msgv2 = iv_msgv2.
+    ls_msg-msgv3 = iv_msgv3.
+    ls_msg-msgv4 = iv_msgv4.
+    ls_msg-detlevel = lv_detlevel.
+    ls_msg-context = is_context.
+
+    IF mv_cumulate_msg EQ abap_true.
+      CALL FUNCTION 'BAL_LOG_MSG_CUMULATE'
+        EXPORTING
+          i_log_handle         = mv_log_handle
+          i_s_msg              = ls_msg
+*         I_COMPARE_ATTRIBUTES = ' '
+          i_compare_context    = 'X'
+          i_compare_parameters = 'X'.
+    ELSE.
+      CALL FUNCTION 'BAL_LOG_MSG_ADD'
+        EXPORTING
+          i_log_handle = mv_log_handle
+          i_s_msg      = ls_msg.
+*        EXCEPTIONS
+*          log_not_found    = 1                " Log not found
+*          msg_inconsistent = 2                " Message inconsistent
+*          log_is_full      = 3                " Message number 999999 reached. Log is full
+*          OTHERS           = 4.
+*      IF sy-subrc <> 0.
+*
+*      ENDIF.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD refresh_current_msg.
+
+    IF mv_log_handle IS NOT INITIAL.
+
+      CALL FUNCTION 'BAL_LOG_MSG_DELETE_ALL'
+        EXPORTING
+          i_log_handle  = mv_log_handle
+        EXCEPTIONS
+          log_not_found = 1
+          OTHERS        = 2.
+
+      IF sy-subrc = 1.
+        DATA(lx_exc) = NEW zcx_fram_log_exc( ).
+        lx_exc->append_sy_message( ).
+        RAISE EXCEPTION TYPE zcx_fram_log_exc.
+
+      ENDIF.
+
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD zif_logger~add_message.
+    DATA(lv_type) = COND syst_msgty( WHEN iv_type IS INITIAL THEN '' ELSE iv_type ).
+
+    me->msg_add(
+      iv_msgty    = lv_type
+      iv_msgid    = is_t100msg-msgid
+      iv_msgno    = is_t100msg-msgno
+      iv_msgv1    = CONV #( is_t100msg-attr1 )
+      iv_msgv2    = CONV #( is_t100msg-attr2 )
+      iv_msgv3    = CONV #( is_t100msg-attr3 )
+      iv_msgv4    = CONV #( is_t100msg-attr4 )
+      iv_detlevel = iv_detlevel
+      is_context  = is_context
+    ).
+  ENDMETHOD.
+
+
+  METHOD zif_logger~add_static_exception.
+
+*    msg_add(
+*      iv_msgty = iv_type
+**      iv_msgno = io_exception->if_t100_message~t100key-msgno
+**      iv_msgid = io_exception->if_t100_message~t100key-msgid
+*      iv_msgv1 = io_exception->msgv1
+*      iv_msgv2 = io_exception->msgv2
+*      iv_msgv3 = io_exception->msgv3
+*      iv_msgv4 = io_exception->msgv4 ).
+
+  ENDMETHOD.
+
+
+  METHOD zif_logger~add_text.
+    DATA: lv_msgv1 TYPE sy-msgv1,
+          lv_msgv2 TYPE sy-msgv2,
+          lv_msgv3 TYPE sy-msgv3,
+          lv_msgv4 TYPE sy-msgv4.
+
+    DATA(lv_type) = COND syst_msgty( WHEN iv_type IS INITIAL THEN 'I' ELSE iv_type ).
+
+    lv_msgv1 = iv_txt(50).
+    lv_msgv2 = iv_txt+50(50).
+    lv_msgv3 = iv_txt+100(50).
+    lv_msgv4 = iv_txt+150(50).
+
+    me->msg_add(
+      iv_msgty    = lv_type
+      iv_msgid    = '00'
+      iv_msgno    = 001
+      iv_msgv1    = lv_msgv1
+      iv_msgv2    = lv_msgv2
+      iv_msgv3    = lv_msgv3
+      iv_msgv4    = lv_msgv4
+    ).
+  ENDMETHOD.
+
+
+  METHOD zif_logger~get_messages_list.
+    DATA: lt_msg TYPE bal_t_msgr.
+
+
+    CALL FUNCTION 'BAL_LOG_READ'
+      EXPORTING
+        i_log_handle  = mv_log_handle
+      IMPORTING
+        et_msg        = lt_msg
+      EXCEPTIONS
+        log_not_found = 1
+        OTHERS        = 2.
+
+    LOOP AT lt_msg ASSIGNING FIELD-SYMBOL(<ls_msg>).
+      APPEND INITIAL LINE TO rt_log_msg ASSIGNING FIELD-SYMBOL(<ls_out>).
+      MOVE-CORRESPONDING <ls_msg> TO <ls_out>.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD zif_logger~save.
+*--------------------------------------------------------------------*
+
+    DATA: ls_statistics            TYPE          bal_s_scnt.
+    DATA: lt_object_with_lognumber TYPE TABLE OF balnri.
+
+*--------------------------------------------------------------------*
+
+    CALL FUNCTION 'BAL_LOG_HDR_READ'
+      EXPORTING
+        i_log_handle = mv_log_handle
+      IMPORTING
+        e_statistics = ls_statistics.
+
+    IF NOT ls_statistics-msg_cnt_al > 0.
+      RETURN.
+    ENDIF.
+
+    CALL FUNCTION 'APPL_LOG_WRITE_DB'
+      EXPORTING
+        log_handle            = mv_log_handle
+        update_task           = abap_false
+      TABLES
+        object_with_lognumber = lt_object_with_lognumber.
+
+  ENDMETHOD.
+ENDCLASS.

@@ -1,0 +1,420 @@
+CLASS zcl_iaf_log DEFINITION
+  PUBLIC
+  INHERITING FROM zcl_fram_logger
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+
+    INTERFACES zif_iaf_log .
+
+    ALIASES get_iaf_context
+      FOR zif_iaf_log~get_iaf_context .
+
+    TYPES:
+      BEGIN OF ty_persn_cond,
+        pernr    TYPE persno,
+        ex       TYPE REF TO zcx_fram_log_exc,
+        type     TYPE  syst_msgty,
+        detlevel TYPE ballevel,
+        context  TYPE bal_s_cont,
+      END OF ty_persn_cond .
+    TYPES:
+      BEGIN OF ty_persn_infty,
+        pernr    TYPE persno,
+        subty    TYPE subty,
+        infty    TYPE infty,
+        ex       TYPE REF TO zcx_fram_log_exc,
+        type     TYPE  syst_msgty,
+        detlevel TYPE ballevel,
+        context  TYPE bal_s_cont,
+      END OF ty_persn_infty .
+    TYPES:
+      tt_persn_infty TYPE TABLE OF ty_persn_infty .
+    TYPES:
+      tt_persn_cond  TYPE TABLE OF ty_persn_cond .
+
+    TYPES: BEGIN OF ty_ballog_ext.
+             INCLUDE TYPE ziaf_s_ballog_ext.
+             TYPES: value TYPE balcval,
+           END OF ty_ballog_ext.
+    CLASS-DATA mt_msg_ballog_ext TYPE TABLE OF ty_ballog_ext .
+
+    METHODS constructor
+      IMPORTING
+        !iv_object       TYPE balobj_d
+        !iv_subobject    TYPE balsubobj
+        !iv_extnumber    TYPE balnrext OPTIONAL
+        !iv_cumulate_msg TYPE abap_bool DEFAULT abap_true .
+
+    METHODS:
+      zif_logger~save REDEFINITION,
+      zif_logger~add_message
+        REDEFINITION .
+    METHODS zif_logger~add_message_ex
+        REDEFINITION .
+    METHODS zif_logger~add_sy_msg
+        REDEFINITION .
+    METHODS zif_logger~display
+        REDEFINITION .
+  PROTECTED SECTION.
+
+    METHODS adjust_tree_profile
+      CHANGING
+        !cs_profile TYPE bal_s_prof .
+
+    METHODS msg_add
+        REDEFINITION .
+*"* protected components of class zcl_appl_log
+*"* do not include other source files here!!!
+  PRIVATE SECTION.
+    DATA: mt_messages_for_pernr       TYPE tt_persn_cond,
+          mt_messages_per_pernr_infty TYPE tt_persn_infty.
+*"* private components of class zcl_appl_log
+*"* do not include other source files here!!!
+*    DATA mv_log_handle TYPE balloghndl .
+*    DATA mv_title TYPE baltitle .
+ENDCLASS.
+
+
+
+CLASS zcl_iaf_log IMPLEMENTATION.
+
+
+  METHOD adjust_tree_profile.
+    FIELD-SYMBOLS: <ls_lvl_fcat> LIKE LINE OF cs_profile-lev1_fcat.
+*
+    APPEND INITIAL LINE TO cs_profile-lev2_fcat ASSIGNING <ls_lvl_fcat>.
+    IF sy-subrc EQ 0.
+      <ls_lvl_fcat>-ref_table = 'ZIAF_S_BALLOG_EXT'.
+      <ls_lvl_fcat>-ref_field = 'PERNR'.
+      <ls_lvl_fcat>-col_pos = '1'.
+      <ls_lvl_fcat>-outputlen = '40'.
+      <ls_lvl_fcat>-cltxt_add = abap_true.
+    ENDIF.
+
+    READ TABLE cs_profile-lev2_fcat WITH KEY ref_table = 'BAL_S_SHOW' ref_field = 'T_PROBCLSS' ASSIGNING <ls_lvl_fcat>.
+    IF sy-subrc EQ 0.
+      <ls_lvl_fcat>-no_out = abap_true.
+    ENDIF.
+
+    APPEND INITIAL LINE TO cs_profile-lev3_fcat ASSIGNING <ls_lvl_fcat>.
+    IF sy-subrc EQ 0.
+      <ls_lvl_fcat>-ref_table = 'ZIAF_S_BALLOG_EXT'.
+      <ls_lvl_fcat>-ref_field = 'INFTY'.
+      <ls_lvl_fcat>-col_pos = '1'.
+      <ls_lvl_fcat>-outputlen = '40'.
+      <ls_lvl_fcat>-cltxt_add = abap_true.
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD constructor.
+*--------------------------------------------------------------------*
+
+    DATA: ls_log TYPE  bal_s_log.
+
+*--------------------------------------------------------------------*
+    super->constructor(
+      EXPORTING
+        iv_object    = iv_object
+        iv_subobject = iv_subobject
+        iv_extnumber = iv_extnumber
+        iv_cumulate_msg = iv_cumulate_msg
+            ).
+
+  ENDMETHOD.
+
+
+  METHOD get_iaf_context.
+    DATA: ls_iaf_context TYPE ziaf_s_ballog_ext.
+    DATA: ls_ballog_ext TYPE ty_ballog_ext.
+
+    IF iv_pernr IS NOT INITIAL.
+      ls_iaf_context-pernr_txt = TEXT-001 && ':' && iv_pernr.
+    ELSE.
+      ls_iaf_context-pernr_txt = TEXT-003.
+    ENDIF.
+
+    IF iv_infty IS NOT INITIAL.
+      ls_iaf_context-infty_txt = TEXT-002 && ': ' && iv_infty.
+    ELSE.
+      ls_iaf_context-infty_txt = TEXT-004.
+    ENDIF.
+
+    ls_iaf_context-pernr  = iv_pernr.
+    ls_iaf_context-infty  = iv_infty.
+    ls_iaf_context-ename  = iv_ename.
+    ls_iaf_context-molga  = iv_molga.
+    ls_iaf_context-subty  = iv_subty.
+    ls_iaf_context-no_c4c = iv_no_c4c.
+
+    IF ls_iaf_context-molga IS INITIAL AND
+       NOT iv_pernr IS INITIAL
+    .
+      "TODO: replace zcl_universal by non-static method
+      ls_iaf_context-molga = zcl_universal=>emp_get_molga( iv_pernr ).
+    ENDIF.
+
+    rs_context-tabname  = 'ZIAF_S_BALLOG_EXT'.
+    rs_context-value    = ls_iaf_context-infty && '|' && ls_iaf_context-infty_txt && '|'
+     && ls_iaf_context-molga && '|' && ls_iaf_context-pernr  && '|' && ls_iaf_context-pernr_txt  && '|' && ls_iaf_context-ename   .
+
+    ls_ballog_ext = ls_iaf_context.
+    ls_ballog_ext-value = rs_context-value.
+    APPEND ls_ballog_ext TO mt_msg_ballog_ext.
+
+
+  ENDMETHOD.
+
+
+  METHOD msg_add.
+    DATA(ls_context) = is_context.
+
+    IF ls_context IS INITIAL.
+      ls_context = get_iaf_context( ).
+    ENDIF.
+
+    CALL METHOD super->msg_add
+      EXPORTING
+        iv_msgty    = iv_msgty
+        iv_msgid    = iv_msgid
+        iv_msgno    = iv_msgno
+        iv_msgv1    = iv_msgv1
+        iv_msgv2    = iv_msgv2
+        iv_msgv3    = iv_msgv3
+        iv_msgv4    = iv_msgv4
+        iv_detlevel = iv_detlevel
+        is_context  = ls_context.
+
+  ENDMETHOD.
+
+
+  METHOD zif_iaf_log~add_message_pernr_inft_table.
+    APPEND INITIAL LINE TO mt_messages_per_pernr_infty ASSIGNING FIELD-SYMBOL(<ls_log>).
+    <ls_log>-ex = ir_ex.
+    <ls_log>-infty = iv_infty.
+    <ls_log>-subty = iv_subty.
+    <ls_log>-context = is_context.
+    <ls_log>-detlevel = iv_detlevel.
+    <ls_log>-type = iv_type.
+    <ls_log>-pernr = iv_pernr.
+  ENDMETHOD.
+
+
+  METHOD zif_iaf_log~add_message_pernr_table.
+    APPEND INITIAL LINE TO mt_messages_for_pernr ASSIGNING FIELD-SYMBOL(<ls_persn>).
+    <ls_persn>-ex = ir_ex.
+    <ls_persn>-context = is_context.
+    <ls_persn>-detlevel = iv_detlevel.
+    <ls_persn>-type = iv_type.
+    <ls_persn>-pernr = iv_pernr.
+    <ls_persn>-ex->if_t100_message~t100key-attr1 = 'V1'.
+    <ls_persn>-ex->if_t100_message~t100key-attr2 = 'V2'.
+    <ls_persn>-ex->if_t100_message~t100key-attr3 = 'V3'.
+    <ls_persn>-ex->if_t100_message~t100key-attr4 = 'V4'.
+  ENDMETHOD.
+
+
+  METHOD zif_iaf_log~check_no_infotype_errors.
+
+    IF line_index( mt_messages_per_pernr_infty[ pernr = is_pskey-pernr type = 'E' infty = is_pskey-infty subty = is_pskey-subty ] ) > 0.
+      RAISE EXCEPTION TYPE zcx_iaf_config_error
+        EXPORTING
+          textid = zcx_iaf_config_error=>infotype_config_error
+          iv_v1  = CONV #( is_pskey-pernr )
+          iv_v2  = CONV #( is_pskey-infty )
+          iv_v3  = CONV #( is_pskey-subty ).
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD zif_iaf_log~check_no_pernr_errors.
+
+    IF line_index( mt_messages_for_pernr[ pernr = is_pskey-pernr type = 'E' ] ) = 0.
+      RAISE EXCEPTION TYPE zcx_iaf_config_error ."EXPORTING textid = zcx_iaf_config_error=> iv_v1 = is_pskey-pernr.
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD zif_iaf_log~update_logs_from_msg_pernr_tab.
+**********************************************************************
+**  This method adds user-specific messages to an application log based
+** on the provided personnel number
+**********************************************************************
+
+    LOOP AT mt_messages_for_pernr ASSIGNING FIELD-SYMBOL(<ls_persn>) WHERE pernr = iv_pernr .
+
+      me->add_message_ex(
+        EXPORTING
+          ir_ex       = <ls_persn>-ex
+          iv_type     = <ls_persn>-type
+          iv_detlevel = <ls_persn>-detlevel
+          is_context  = <ls_persn>-context    " Application Log: Context
+      ).
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD zif_iaf_log~update_msgs_pernr_infty_tab.
+**********************************************************************
+**  This method adds user-specific messages to an application log based
+** on the provided personnel number
+**********************************************************************
+
+    LOOP AT mt_messages_per_pernr_infty ASSIGNING FIELD-SYMBOL(<ls_log_line>) WHERE pernr = is_pskey-pernr AND infty = is_pskey-infty AND subty = is_pskey-subty.
+
+      me->add_message_ex(
+        EXPORTING
+          ir_ex       = <ls_log_line>-ex
+          iv_type     = <ls_log_line>-type
+          iv_detlevel = <ls_log_line>-detlevel
+          is_context  = <ls_log_line>-context    " Application Log: Context
+      ).
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD zif_logger~add_message.
+    DATA(ls_context) = is_context.
+
+    IF ls_context IS INITIAL.
+      ls_context = get_iaf_context( ).
+    ENDIF.
+
+    CALL METHOD super->zif_logger~add_message
+      EXPORTING
+        is_t100msg  = is_t100msg
+        iv_type     = iv_type
+        iv_detlevel = iv_detlevel
+        is_context  = ls_context.
+
+  ENDMETHOD.
+
+
+  METHOD zif_logger~add_message_ex.
+
+    IF ir_ex IS NOT BOUND OR ir_ex IS INITIAL .
+      RETURN.
+    ENDIF.
+
+    DATA(ls_context) = is_context.
+
+    IF ls_context IS INITIAL.
+      ls_context = get_iaf_context( ).
+    ENDIF.
+
+    CALL METHOD super->zif_logger~add_message_ex
+      EXPORTING
+        ir_ex       = ir_ex
+        iv_type     = iv_type
+        iv_detlevel = iv_detlevel
+        is_context  = ls_context.
+
+  ENDMETHOD.
+
+
+  METHOD zif_logger~add_sy_msg.
+    DATA(ls_context) = is_context.
+
+    IF ls_context IS INITIAL.
+      ls_context = me->get_iaf_context( ).
+    ENDIF.
+
+    super->zif_logger~add_sy_msg(
+      iv_detlevel = iv_detlevel
+      is_context  = ls_context
+    ).
+  ENDMETHOD.
+
+
+  METHOD zif_logger~display.
+    CONSTANTS con_end_col_20 TYPE i VALUE 20.
+* ------------------------------------------------------------------
+
+    DATA: lt_log_handle     TYPE bal_t_logh,
+          ls_statistics     TYPE bal_s_scnt,
+          ls_profile_single TYPE bal_s_prof,
+          ls_profile        TYPE bal_s_prof.
+
+* ------------------------------------------------------------------
+
+
+    CALL FUNCTION 'BAL_LOG_HDR_READ'
+      EXPORTING
+        i_log_handle = mv_log_handle
+      IMPORTING
+        e_statistics = ls_statistics.
+
+    IF NOT ls_statistics-msg_cnt_al > 0.
+      RETURN.
+    ENDIF.
+
+    APPEND mv_log_handle TO lt_log_handle.
+    IF iv_standard_disp EQ abap_true.
+      CALL FUNCTION 'BAL_DSP_PROFILE_STANDARD_GET'
+        IMPORTING
+          e_s_display_profile = ls_profile.
+
+      ls_profile-tree_adjst = abap_true.
+      ls_profile-show_all = abap_true.
+    ELSE.
+      CALL FUNCTION 'BAL_DSP_PROFILE_POPUP_GET'
+        IMPORTING
+          e_s_display_profile = ls_profile.
+
+      IF iv_show_tree EQ abap_true.
+        CALL FUNCTION 'BAL_DSP_PROFILE_SINGLE_LOG_GET'
+          IMPORTING
+            e_s_display_profile = ls_profile_single.
+
+        ls_profile_single-start_col = ls_profile-start_col.
+        ls_profile_single-start_row = ls_profile-start_row.
+        ls_profile_single-end_col = ls_profile-end_col + con_end_col_20.
+        ls_profile_single-end_row = ls_profile-end_row.
+*        ls_profile_single-pop_adjst = ls_profile-pop_adjst.
+        ls_profile = ls_profile_single.
+      ENDIF.
+
+      CALL FUNCTION 'BAL_DSP_PROFILE_POPUP_GET'
+        IMPORTING
+          e_s_display_profile = ls_profile.
+
+      ls_profile-tree_adjst = abap_true.
+      ls_profile-show_all = abap_true.
+
+      ls_profile-title =   mv_title.
+      ls_profile-use_grid = abap_true.
+
+    ENDIF.
+
+    IF iv_show_tree EQ abap_true.
+      adjust_tree_profile(
+        CHANGING
+          cs_profile = ls_profile    " Application Log: Log Output Format Profile
+      ).
+    ENDIF.
+
+
+    CALL FUNCTION 'BAL_DSP_LOG_DISPLAY'
+      EXPORTING
+        i_s_display_profile = ls_profile
+        i_t_log_handle      = lt_log_handle.
+*              i_amodal       = 'X'.
+  ENDMETHOD.
+
+
+  METHOD zif_logger~save.
+    super->zif_logger~save(  ).
+*    DATA:ls_error_log TYPE ziaf_err_log_t.
+*    ls_error_log-mandt         = sy-mandt.
+*    ls_error_log-method_name   = iv_method_name.
+*    ls_error_log-line_number   = iv_lineno.
+*    ls_error_log-error_text    = iv_err_text.
+*    ls_error_log-executed_date = sy-datum.
+*    ls_error_log-executed_time = sy-uzeit.
+*    IF ls_error_log IS NOT INITIAL.
+*      MODIFY ziaf_err_log_t FROM ls_error_log.
+*    ENDIF.
+
+  ENDMETHOD.
+ENDCLASS.

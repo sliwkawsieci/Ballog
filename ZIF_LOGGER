@@ -1,0 +1,74 @@
+interface ZIF_LOGGER
+  public .
+
+
+  constants:
+    BEGIN OF c_detail_levels,
+      lvl_1 TYPE ballevel VALUE 1,
+      lvl_2 TYPE ballevel VALUE 2,
+      lvl_3 TYPE ballevel VALUE 3,
+      lvl_4 TYPE ballevel VALUE 4,
+      lvl_5 TYPE ballevel VALUE 5,
+      lvl_6 TYPE ballevel VALUE 6,
+      lvl_7 TYPE ballevel VALUE 7,
+      lvl_8 TYPE ballevel VALUE 8,
+      lvl_9 TYPE ballevel VALUE 9,
+    END OF c_detail_levels .
+
+  methods ADD_SY_MSG
+    importing
+      !IV_DETLEVEL type BALLEVEL optional
+      !IS_CONTEXT type BAL_S_CONT optional .
+  methods ADD_BAPIRET
+    importing
+      !IS_BAPIRET2 type BAPIRET2
+      !IS_CONTEXT type BAL_S_CONT optional .
+  methods HAS_ERROR
+    returning
+      value(RV_VALUE) type SAP_BOOL .
+  methods SAVE
+    importing
+      !IV_METHOD_NAME type STRING optional
+      !IV_LINENO type I optional
+      !IV_ERR_TEXT type STRING optional .
+  methods DISPLAY
+    importing
+      !IV_SHOW_TREE type SAP_BOOL optional
+      !IV_STANDARD_DISP type SAP_BOOL optional .
+  methods ADD_MESSAGE_EX
+    importing
+      !IR_EX type ref to ZCX_FRAM_LOG_EXC
+      !IV_TYPE type SY-MSGTY optional
+      !IV_DETLEVEL type BALLEVEL optional
+      !IS_CONTEXT type BAL_S_CONT optional
+    RAISING
+      zcx_fram_obj_no_bound.
+*    raising
+*      ZCX_IAF_LOG .
+  methods REFRESH_CURRENT_MSG
+    raising
+      ZCX_FRAM_LOG_EXC .
+  methods ADD_MESSAGE
+    importing
+      !IS_T100MSG type SCX_T100KEY
+      !IV_TYPE type SY-MSGTY optional
+      !IV_DETLEVEL type BALLEVEL optional
+      !IS_CONTEXT type BAL_S_CONT optional .
+  methods ADD_TEXT
+    importing
+      !IV_TXT type CHAR200
+      !IV_TYPE type SYST_MSGTY optional .
+  methods ADD_STATIC_EXCEPTION
+    importing
+      !IO_EXCEPTION type ref to CX_STATIC_CHECK
+      !IV_TYPE type MSGTY default 'E' .
+  methods GET_MESSAGES_LIST
+    returning
+      value(RT_LOG_MSG) type BAL_T_MSG .
+  methods GET_LOGGS4EXTNUM
+    importing
+      !IV_EXTERNAL_NUMBER type BALHDR-EXTNUMBER
+    returning
+      value(R_RESULT) type BALM_T .
+  methods DELETE_LOGS .
+endinterface.
